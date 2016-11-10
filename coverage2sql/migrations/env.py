@@ -18,9 +18,13 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 from logging.config import fileConfig
 
+from coverage2sql.db import api as db_api
+
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
+coverage2sql_config = config.coverage2sql_config
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -50,9 +54,16 @@ def run_migrations_offline():
     script output.
 
     """
+    kwargs = dict()
+    if coverage2sql_config.database.connection:
+        kwargs['url'] = coverage2sql_config.database.connection
+    elif coverage2sql_config.database.engine:
+        kwargs['dialect_name'] = coverage2sql_config.database.engine
+    else:
+        kwargs['url'] = config.get_main_option("sqlalchemy.url")
+
     url = config.get_main_option("sqlalchemy.url")
-    context.configure(
-        url=url, target_metadata=target_metadata, literal_binds=True)
+    context.configure(**kwargs)
 
     with context.begin_transaction():
         context.run_migrations()
@@ -65,10 +76,7 @@ def run_migrations_online():
     and associate a connection with the context.
 
     """
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section),
-        prefix='sqlalchemy.',
-        poolclass=pool.NullPool)
+    connectable = db_api.get_session().get_bind()
 
     with connectable.connect() as connection:
         context.configure(
